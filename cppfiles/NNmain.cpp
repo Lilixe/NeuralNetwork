@@ -8,6 +8,8 @@
 #include "tensor.cpp"
 
 using namespace std;
+// All Matrix multiplication will be done using the naive approch which is enough for this project. With a complexity of O(n^3) for n x n matrices.
+// The project is a simple neural network implementation for MNIST digit classification.
 
 // Define a structure to hold the digit image data
 struct DigitImage
@@ -96,7 +98,6 @@ void displayImageInfo(const DigitImage &img)
     img.pixels.display();
 }
 
-
 // Function to randomize the dataset
 vector<DigitImage> randomizeVect(vector<DigitImage> &dataset)
 {
@@ -157,6 +158,66 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> initParameters()
     }
 
     return make_tuple(b1, b2, w1, w2); // Return a tuple of vectors for biases and weights
+}
+
+// Function to perform forward propagation for the first layer
+Tensor2D forwardPropagationFL(const Tensor2D &input, const Tensor2D &weights, const Tensor2D &biases)
+{
+    Tensor2D result = Tensor2D(input.rows(), weights.cols());
+    for (int i = 0; i < result.rows(); ++i) // Iterate over each row of the input
+    {
+        for (int j = 0; j < result.cols(); ++j) // Iterate over each column of the weights
+        {
+            result(i, j) = biases(0, j);           // Start with bias
+            for (int k = 0; k < input.cols(); ++k) // Iterate over each column of the input and row of the weights
+            {
+                result(i, j) += input(i, k) * weights(k, j); // Add weighted inputs
+            }
+            if (result(i, j) < 0) // Apply ReLU activation function
+            {
+                result(i, j) = 0; // Set negative values to zero
+            }
+        }
+    }
+}
+// Function to forward propagate through the second layer
+Tensor2D forwardPropagationSL(const Tensor2D &input, const Tensor2D &weights, const Tensor2D &biases)
+{
+    float sum = 0.0f; // Initialize sum for the output
+    Tensor2D result = Tensor2D(input.rows(), weights.cols());
+    for (int i = 0; i < result.rows(); ++i) // Iterate over each row of the input
+    {
+        for (int j = 0; j < result.cols(); ++j) // Iterate over each column of the weights
+        {
+            result(i, j) = biases(0, j);           // Start with bias
+            for (int k = 0; k < input.cols(); ++k) // Iterate over each column of the input and row of the weights
+            {
+                result(i, j) += input(i, k) * weights(k, j); // Add weighted inputs
+            }
+            sum += exp(result(i, j)); // Accumulate the sum for softmax
+        }
+    }
+    // Apply softmax activation function
+    for (int i = 0; i < result.rows(); ++i)
+    {
+        for (int j = 0; j < result.cols(); ++j)
+        {
+            result(i, j) = exp(result(i, j)) / sum; // Apply softmax
+        }
+    }
+}
+
+void iterateForwardPropagation(vector<DigitImage> &data, const Tensor2D &w1, const Tensor2D &b1, const Tensor2D &w2, const Tensor2D &b2)
+{
+    for (DigitImage &img : data)
+    {
+        // Forward propagate through the first layer
+        Tensor2D layer1 = forwardPropagationFL(img.pixels, w1, b1);
+        // Forward propagate through the second layer
+        Tensor2D output = forwardPropagationSL(layer1, w2, b2);
+
+        img.pixels.copy(output); // Store the output in the image pixels (or handle it as needed)
+    }
 }
 
 int main()

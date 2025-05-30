@@ -33,6 +33,14 @@ public:
         return data[computeOffset(i, j)];
     }
 
+    void copy(const Tensor2D& other) {
+    if (this != &other) {
+        n = other.n;
+        m = other.m;
+        data = other.data;
+    };
+}
+
     int rows() const { return n; }
     int cols() const { return m; }
     int size() const { return data.size(); }
