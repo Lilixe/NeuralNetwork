@@ -8,12 +8,21 @@
 #include <math.h>
 
 #include "tensor.cpp"
-
 using namespace std;
+
 // All Matrix multiplication will be done using the naive approch which is enough for this project. With a complexity of O(n^3) for n x n matrices.
 // The project is a simple neural network implementation for MNIST digit classification.
 
-// Define a structure to hold the digit image data
+
+
+                        /**************************************************
+                         *                INITIALIZATION                  *
+                         * This section initializes the neural network,   *
+                         * including weights, biases, and structure.      *
+                         **************************************************/
+
+
+// Define a structure to hold the digit image data until processed to matrix format
 struct DigitImage
 {
     int label;       // Label of the digit (0-9)
@@ -174,6 +183,16 @@ pair<Tensor2D, Tensor2D> toMatrix(vector<DigitImage> &data)
     return make_pair(resultLbl,resultPxl); // Return the matrix representation of the dataset
 }
 
+
+
+                        /**************************************************
+                         *             FORWARD PROPAGATION                *
+                         * Computes the output of the network by passing  *
+                         * inputs through each layer using activation     *
+                         * functions (e.g., ReLU, softmax).               *
+                         **************************************************/
+
+
 // ReLU activation function
 Tensor2D relu(Tensor2D t)
 {
@@ -192,19 +211,16 @@ Tensor2D relu(Tensor2D t)
 Tensor2D softmax(Tensor2D t)
 {
     Tensor2D result = Tensor2D(t.rows(), t.cols()); // Create a new tensor for the result
-    float max = t.max(); // Find the maximum value in the tensor
-    float sum = 0.0f; // Initialize sum for softmax
-    for (int i = 0; i < t.rows(); ++i)
+    for (int j = 0; j < t.cols(); ++j)
     {
-        for (int j = 0; j < t.cols(); ++j)
+        float max = t.max(j); // Find the maximum value in the column for numerical stability
+        float sum = 0.0f; // Initialize sum for softmax
+        for (int i = 0; i < t.rows(); ++i)
         {
             result(i, j) = exp(t(i, j) - max); // Subtract max for numerical stability
             sum += result(i, j); // Accumulate the sum for softmax
         }
-    }
-    for (int i = 0; i < result.rows(); ++i)
-    {
-        for (int j = 0; j < result.cols(); ++j)
+        for (int i = 0; i < result.rows(); ++i)
         {
             result(i, j) /= sum; // Normalize by the sum
         }
@@ -219,7 +235,7 @@ Tensor2D forwardPropagationFL(const Tensor2D input, const Tensor2D weights, cons
     return result; // Return the result of the forward propagation
 }
 
-// Function to forward propagate through the second layer
+// Function to perform forward propagate through the second layer
 Tensor2D forwardPropagationSL(const Tensor2D input, const Tensor2D weights, const Tensor2D biases)
 {
     Tensor2D result = weights.dot(input) + biases; // Perform matrix multiplication and add biases
@@ -227,7 +243,7 @@ Tensor2D forwardPropagationSL(const Tensor2D input, const Tensor2D weights, cons
 }
 
 // Function to iterate over the dataset and perform forward propagation
-tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> iterateForwardPropagation(
+tuple<Tensor2D,Tensor2D,Tensor2D,Tensor2D> iterateForwardPropagation(
     Tensor2D &data, const Tensor2D &w1, const Tensor2D &b1, const Tensor2D &w2, const Tensor2D &b2)
 {
     // Vectors to hold the outputs of each layer and the updated images
@@ -244,6 +260,15 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> iterateForwardPropagation(
     return make_tuple(L1output, L1outputRelu, L2output, softmaxOutput); // Return the tuple of vectors
 }
 
+
+
+                        /**************************************************
+                         *             BACKWARD PROPAGATION                *
+                         * Computes gradients and updates weights and      *
+                         * biases based on the loss function.              *
+                         **************************************************/    
+
+
 // Function to average the tensor by dividing each element by m
 Tensor2D averagedTensor (const Tensor2D &t, int m)
 {
@@ -258,34 +283,72 @@ Tensor2D averagedTensor (const Tensor2D &t, int m)
     return result; // Return the averaged tensor
 }
 
-// Function to perform backward propagation
-void backwardPropagation(vector<Tensor2D> &l1, vector<Tensor2D> &l1relu, vector<Tensor2D> &l2, vector<DigitImage> &forwardResults)
+// Function to compute the derivative of ReLU activation function
+Tensor2D derivativeRelu(const Tensor2D &t, const Tensor2D variator)
 {
-    int m = forwardResults[0].pixels.size() * forwardResults.size();
-    vector<Tensor2D> dl1relu, dw1, db1, dresults, dw2, db2;
-    for (DigitImage &img : forwardResults)
+    Tensor2D result = Tensor2D(t.rows(), t.cols()); // Create a new tensor for the result
+    for (int i = 0; i < t.rows(); ++i)
     {
-        Tensor2D dt = img.pixels; // Get the output of the second layer
-        dt(0, img.label) -= 1;
-        dl1relu.push_back(dt);
+        for (int j = 0; j < t.cols(); ++j)
+        {
+            result(i, j) = (variator(i, j) > 0) ? t(i, j) : 0.0f; // Derivative of ReLU is the value of t if variator > 0, else 0
+        }
     }
+    return result; // Return the derivative of ReLU
 }
-    
+
+// Function to convert labels to one-hot encoding tensor
+Tensor2D oneHot(const Tensor2D labels)
+{
+    Tensor2D result = Tensor2D(labels.cols(), 10); // Create a new tensor for the result with 10 classes
+    for (int i = 0; i < labels.cols(); ++i)
+    {
+        result(i, labels(0, i)) =  1.0f; // Set the corresponding class to 1
+    }
+    return result.transpose(); // Return the one-hot encoded tensor
+}
+
+// Function to perform backward propagation
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D, Tensor2D, Tensor2D> backwardPropagation(Tensor2D &w2, Tensor2D &l1, Tensor2D &l1relu, Tensor2D &l2, Tensor2D &devPixels, Tensor2D &forwardResults, Tensor2D &oneHotLabels)
+{
+    int m = forwardResults.size(); // Get the number of samples (columns in the one-hot labels)
+    Tensor2D dl1, dw1, db1, dl2, dw2, db2; // Gradients for the layers
+ 
+    // Compute the gradient of the loss with respect to the second layer
+    dl2 = forwardResults - oneHotLabels; // Compute the gradient of the loss with respect to the output layer
+    dw2 = averagedTensor(dl2.dot(l1relu.transpose()), m); // Compute the gradient of the weights for the second layer
+    db2 = averagedTensor(dl2, m); // Compute the gradient of the biases for the second layer
+
+    // Compute the gradient of the loss with respect to the first layer
+    dl1 = derivativeRelu(w2.transpose().dot(dl2), l1); // Apply the derivative of ReLU to the gradient of the first layer
+    dw1 = averagedTensor(dl1.dot(devPixels.transpose()), m); // Compute the gradient of the weights for the first layer
+    db1 = averagedTensor(dl1, m); // Compute the gradient of the biases for the first layer
+
+    return make_tuple(dl1, dw1, db1, dl2, dw2, db2);
+}
+
+
+
+                                /*****************************
+                                *       MAIN FUNCTION       *
+                                * Program execution starts. *
+                                *****************************/
+
 
 int main()
 {
     // Load MNIST dataset
     vector<DigitImage> trainData = loadMNIST("../mnist_train.csv");
     vector<DigitImage> testData = loadMNIST("../mnist_test.csv");
-
+    
     // Randomize the training data
     trainData = randomizeVect(trainData);
     vector<DigitImage> devData;
 
-    
     // Split the training data into training and development sets
     tie(trainData, devData) = splitData(trainData);
     
+    //convert all datasets to matrix format
     Tensor2D trainLabels, trainPixels, devLabels, devPixels, testLabels, testPixels;
     tie(trainLabels, trainPixels) = toMatrix(trainData); // Convert training data to matrix format
     tie(devLabels, devPixels) = toMatrix(devData); // Convert development data to matrix format
@@ -295,12 +358,20 @@ int main()
     Tensor2D b1, b2, w1, w2;
     tie(b1, b2, w1, w2) = initParameters();
     
-    
+
+    //Forward propagation through the neural network
     Tensor2D l1, l1relu, l2, l2softmax; // Vectors to hold outputs of the layers results
-    tie(l1, l1relu, l2, l2softmax) = iterateForwardPropagation(trainPixels, w1, b1, w2, b2);
+    tie(l1, l1relu, l2, l2softmax) = iterateForwardPropagation(devPixels, w1, b1, w2, b2);
+
+    
+    //backward propagation through the neural network
+    Tensor2D oneHotLabels = oneHot(devLabels); // Convert labels to one-hot encoding
+    Tensor2D dl1, dw1, db1, dl2, dw2, db2; 
+    tie(dl1, dw1, db1, dl2, dw2, db2) = backwardPropagation(w2, l1, l1relu, l2, devPixels, l2softmax, oneHotLabels); // Perform backward propagation
     
     // Display the first image's output after forward propagation
-    cout << "Output size n : " << l2softmax.rows() << " by m : " << l2softmax.cols() << endl;
+    cout << "Output size n : " << trainLabels.rows() << " by m : " << trainLabels.cols() << endl;
     
+    //backward propagation through the neural network
     return 0;
 }

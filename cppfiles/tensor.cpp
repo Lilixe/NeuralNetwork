@@ -5,7 +5,9 @@
 #include <initializer_list>
 #include <algorithm>
 
+
 using namespace std;
+
 
 class Tensor2D
 {
@@ -25,14 +27,13 @@ public:
     Tensor2D() = default;
 
     // Constructor to initialize a 2D tensor with an other tensor
-    Tensor2D(const Tensor2D& other)
-    : n(other.n), m(other.m), data(other.data) {}
+    Tensor2D(const Tensor2D &other)
+        : n(other.n), m(other.m), data(other.data) {}
 
     // Constructor to initialize a 2D tensor with given dimensions
     Tensor2D(int n, int m)
         : n(n), m(m), data(n * m, 0.0f) {}
 
-    
     // Overloaded operator to access elements in a tensor
     float &operator()(int i, int j)
     {
@@ -73,8 +74,8 @@ public:
     Tensor2D operator-(const Tensor2D &other) const
     {
         if (n != other.n || m != other.m)
-            throw invalid_argument("Tensors must have the same dimensions for addition");
-        
+            throw invalid_argument("Tensors must have the same dimensions for subtraction");
+
         Tensor2D result = Tensor2D(n, m);
         for (int i = 0; i < n; ++i)
         {
@@ -103,14 +104,32 @@ public:
     int cols() const { return m; }
     int size() const { return data.size(); }
 
-    // Get the maximum value in the tensor
-    float max() const
+    // Get the maximum value in the tensor's column
+    float max(int col) const
     {
-        return *max_element(data.begin(), data.end());
+        float maxVal = 0.0f;
+        for (int i = 0; i < n; ++i)
+        {
+            if (operator()(i, col) > maxVal)
+            {
+                maxVal = operator()(i, col);
+            }
+        }
+        return maxVal;
+    }
+
+    float sum() const
+    {
+        float total = 0.0f;
+        for (const float &value : data)
+        {
+            total += value;
+        }
+        return total;
     }
 
     // Matrix multiplication
-    Tensor2D dot (const Tensor2D &other) const
+    Tensor2D dot(const Tensor2D &other) const
     {
         if (m != other.n)
             throw invalid_argument("Incompatible dimensions for multiplication");
@@ -131,7 +150,7 @@ public:
         return result;
     }
 
-    //function to concatenate two tensors
+    // function to concatenate two tensors
     Tensor2D concatenate(const Tensor2D &other) const
     {
         if (n != other.n)
@@ -152,7 +171,7 @@ public:
         return result;
     }
 
-    //function T to transpose a tensor
+    // function T to transpose a tensor
     Tensor2D transpose() const
     {
         Tensor2D result = Tensor2D(m, n);
