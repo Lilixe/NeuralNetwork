@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <numeric>
 #include <initializer_list>
+#include <algorithm>
 
 using namespace std;
 
@@ -44,21 +45,28 @@ public:
         return data[computeOffset(i, j)];
     }
 
-    // overloaded operator for addition
+    // Overloaded operator for addition of a tensor and a column vector or a 2D tensor of same shape
     Tensor2D operator+(const Tensor2D &other) const
     {
-        if (n != other.n || m != other.m)
-            throw invalid_argument("Tensors must have the same dimensions for addition");
-        
-        Tensor2D result = Tensor2D(n, m);
-        for (int i = 0; i < n; ++i)
+        // Add another 2D tensor of the same shape
+        if (n == other.n && m == other.m)
         {
-            for (int j = 0; j < m; ++j)
-            {
-                result(i, j) = operator()(i, j) + other(i, j);
-            }
+            Tensor2D result(n, m);
+            for (int i = 0; i < n; ++i)
+                for (int j = 0; j < m; ++j)
+                    result(i, j) = operator()(i, j) + other(i, j);
+            return result;
         }
-        return result;
+        // Add a column vector (other.m == 1, other.n == n)
+        if (other.m == 1 && other.n == n)
+        {
+            Tensor2D result(n, m);
+            for (int i = 0; i < n; ++i)
+                for (int j = 0; j < m; ++j)
+                    result(i, j) = operator()(i, j) + other(i, 0);
+            return result;
+        }
+        throw invalid_argument("Tensors must have the same dimensions or other must be a column vector with matching rows for addition");
     }
 
     // Overloaded operator for subtraction
@@ -110,14 +118,49 @@ public:
         Tensor2D result = Tensor2D(n, other.m);
         for (int i = 0; i < n; ++i)
         {
-            for (int j = 0; j < m; ++j)
+            for (int j = 0; j < other.m; ++j)
             {
                 float sum = 0.0f;
-                for (int k = 0; k < other.m; ++k)
+                for (int k = 0; k < m; ++k)
                 {
                     sum += operator()(i, k) * other(k, j);
                 }
                 result(i, j) = sum;
+            }
+        }
+        return result;
+    }
+
+    //function to concatenate two tensors
+    Tensor2D concatenate(const Tensor2D &other) const
+    {
+        if (n != other.n)
+            throw invalid_argument("Tensors must have the same number of rows for concatenation");
+
+        Tensor2D result = Tensor2D(n, m + other.m);
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = 0; j < m; ++j)
+            {
+                result(i, j) = operator()(i, j);
+            }
+            for (int j = 0; j < other.m; ++j)
+            {
+                result(i, m + j) = other(i, j);
+            }
+        }
+        return result;
+    }
+
+    //function T to transpose a tensor
+    Tensor2D transpose() const
+    {
+        Tensor2D result = Tensor2D(m, n);
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = 0; j < m; ++j)
+            {
+                result(j, i) = operator()(i, j);
             }
         }
         return result;
