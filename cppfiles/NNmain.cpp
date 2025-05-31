@@ -195,37 +195,14 @@ Tensor2D softmax(Tensor2D t)
 // Function to perform forward propagation for the first layer
 Tensor2D forwardPropagationFL(const Tensor2D input, const Tensor2D weights, const Tensor2D biases)
 {
-    Tensor2D result = Tensor2D(input.rows(), weights.cols());
-    for (int i = 0; i < result.rows(); ++i) // Iterate over each row of the input
-    {
-        for (int j = 0; j < result.cols(); ++j) // Iterate over each column of the weights
-        {
-            result(i, j) = biases(0, j);           // Start with bias
-            for (int k = 0; k < input.cols(); ++k) // Iterate over each column of the input and row of the weights
-            {
-                result(i, j) += input(i, k) * weights(k, j); // Add weighted inputs
-            }
-        }
-    }
+    Tensor2D result = input.dot(weights) + biases; // Perform matrix multiplication and add biases
     return result; // Return the result of the forward propagation
 }
 
 // Function to forward propagate through the second layer
 Tensor2D forwardPropagationSL(const Tensor2D input, const Tensor2D weights, const Tensor2D biases)
 {
-    float sum = 0.0f; // Initialize sum for the output
-    Tensor2D result = Tensor2D(input.rows(), weights.cols());
-    for (int i = 0; i < result.rows(); ++i) // Iterate over each row of the input
-    {
-        for (int j = 0; j < result.cols(); ++j) // Iterate over each column of the weights
-        {
-            result(i, j) = biases(0, j);           // Start with bias
-            for (int k = 0; k < input.cols(); ++k) // Iterate over each column of the input and row of the weights
-            {
-                result(i, j) += input(i, k) * weights(k, j); // Add weighted inputs
-            }
-        }
-    }
+    Tensor2D result = input.dot(weights) + biases; // Perform matrix multiplication and add biases
     return result; // Return the result of the forward propagation
 }
 
@@ -257,6 +234,31 @@ tuple<vector<Tensor2D>, vector<Tensor2D>, vector<Tensor2D>, vector<DigitImage>> 
         updatedImages.push_back(updatedImg);
     }
     return make_tuple(l1outputs, l1outputsRelu, l2outputs, updatedImages); // Return the tuple of vectors
+}
+
+Tensor2D averagedTensor (const Tensor2D &t, int m)
+{
+    Tensor2D result = Tensor2D(t.rows(), t.cols()); // Create a new tensor for the result
+    for (int i = 0; i < t.rows(); ++i)
+    {
+        for (int j = 0; j < t.cols(); ++j)
+        {
+            result(i, j) /= m; // Divide each element by m to average
+        }
+    }
+    return result; // Return the averaged tensor
+}
+
+void backwardPropagation(vector<Tensor2D> &l1, vector<Tensor2D> &l1relu, vector<Tensor2D> &l2, vector<DigitImage> &forwardResults)
+{
+    int m = forwardResults[0].pixels.size() * forwardResults.size();
+    vector<Tensor2D> dl1relu, dw1, db1, dresults, dw2, db2;
+    for (DigitImage &img : forwardResults)
+    {
+        Tensor2D dt = img.pixels; // Get the output of the second layer
+        dt(0, img.label) -= 1;
+        dl1relu.push_back(dt);
+    }
 }
     
 

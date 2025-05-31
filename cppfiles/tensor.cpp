@@ -31,16 +31,54 @@ public:
     Tensor2D(int n, int m)
         : n(n), m(m), data(n * m, 0.0f) {}
 
+    
+    // Overloaded operator to access elements in a tensor
     float &operator()(int i, int j)
     {
         return data[computeOffset(i, j)];
     }
 
+    // Overloaded operator to access elements in a const tensor
     float operator()(int i, int j) const
     {
         return data[computeOffset(i, j)];
     }
 
+    // overloaded operator for addition
+    Tensor2D operator+(const Tensor2D &other) const
+    {
+        if (n != other.n || m != other.m)
+            throw invalid_argument("Tensors must have the same dimensions for addition");
+        
+        Tensor2D result = Tensor2D(n, m);
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = 0; j < m; ++j)
+            {
+                result(i, j) = operator()(i, j) + other(i, j);
+            }
+        }
+        return result;
+    }
+
+    // Overloaded operator for subtraction
+    Tensor2D operator-(const Tensor2D &other) const
+    {
+        if (n != other.n || m != other.m)
+            throw invalid_argument("Tensors must have the same dimensions for addition");
+        
+        Tensor2D result = Tensor2D(n, m);
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = 0; j < m; ++j)
+            {
+                result(i, j) = operator()(i, j) - other(i, j);
+            }
+        }
+        return result;
+    }
+
+    // Overloaded assignment operator
     Tensor2D &operator=(const Tensor2D &other)
     {
         if (this != &other)
@@ -52,19 +90,46 @@ public:
         return *this;
     }
 
+    // function to acess size and dimensions of the tensor
     int rows() const { return n; }
     int cols() const { return m; }
     int size() const { return data.size(); }
+
+    // Get the maximum value in the tensor
     float max() const
     {
         return *max_element(data.begin(), data.end());
     }
 
+    // Matrix multiplication
+    Tensor2D dot (const Tensor2D &other) const
+    {
+        if (m != other.n)
+            throw invalid_argument("Incompatible dimensions for multiplication");
+
+        Tensor2D result = Tensor2D(n, other.m);
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = 0; j < m; ++j)
+            {
+                float sum = 0.0f;
+                for (int k = 0; k < other.m; ++k)
+                {
+                    sum += operator()(i, k) * other(k, j);
+                }
+                result(i, j) = sum;
+            }
+        }
+        return result;
+    }
+
+    // Function to fill the tensor with a specific value
     void fill(float value)
     {
         std::fill(data.begin(), data.end(), value);
     }
 
+    // Function to display the tensor values
     void display() const
     {
         for (int i = 0; i < n; ++i)
@@ -78,8 +143,8 @@ public:
     }
 };
 
-// Example usage
 /*
+// Example usage
 int main() {
     Tensor2D t(2, 3);
     t.fill(1.5f);
@@ -88,5 +153,4 @@ int main() {
     cout << "Shape: " << t.rows() << " " << t.cols() << endl;
     cout << "Element at (1,2): " << t(1, 2) << endl;
     return 0;
-}
-*/
+}*/
