@@ -1,0 +1,5 @@
+file:///F:/Downloads/francoismalgouyrestalkdeepex.pdf
+https://codereview.stackexchange.com/questions/177973/softmax-function-implementation
+https://www.geeksforgeeks.org/strassens-matrix-multiplication-algorithm-implementation/
+https://www.youtube.com/watch?v=w8yWXqWQYmU
+https://en.wikipedia.org/wiki/Softmax_function

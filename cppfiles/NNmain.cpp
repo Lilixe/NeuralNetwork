@@ -5,6 +5,8 @@
 #include <string>
 #include <algorithm>
 #include <random>
+#include <math.h>
+
 #include "tensor.cpp"
 
 using namespace std;
@@ -35,7 +37,7 @@ vector<DigitImage> loadMNIST(const string &filename)
 
     string line;
 
-    // Skip header row
+    // Skip header row because it does not contain data on this training set
     getline(file, line);
 
     while (getline(file, line))
@@ -72,16 +74,7 @@ vector<DigitImage> loadMNIST(const string &filename)
             }
             ++cpt;
         }
-
-        // Only add if we have exactly 784 pixels
-        if (cpt == 784)
-        {
-            dataset.push_back(img);
-        }
-        else
-        {
-            cerr << "Skipping row with " << cpt << " pixels\n";
-        }
+        dataset.push_back(img);
     }
 
     file.close();
@@ -119,6 +112,7 @@ pair<vector<DigitImage>, vector<DigitImage>> splitData(vector<DigitImage> &datas
     return make_pair(train, dev); // Return a pair of vectors
 }
 
+// Function to initialize weights and biases for the neural network
 tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> initParameters()
 {
 
@@ -160,8 +154,46 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> initParameters()
     return make_tuple(b1, b2, w1, w2); // Return a tuple of vectors for biases and weights
 }
 
+// ReLU activation function
+Tensor2D relu(Tensor2D t)
+{
+    Tensor2D result = Tensor2D(t.rows(), t.cols()); // Create a new tensor for the result
+    for (int i = 0; i < t.rows(); ++i)
+    {
+        for (int j = 0; j < t.cols(); ++j)
+        {
+            result(i, j) = (t(i, j) < 0) ? 0 : t(i, j);
+        }
+    }
+    return result;
+}
+
+// Softmax activation function
+Tensor2D softmax(Tensor2D t)
+{
+    Tensor2D result = Tensor2D(t.rows(), t.cols()); // Create a new tensor for the result
+    float max = t.max(); // Find the maximum value in the tensor
+    float sum = 0.0f; // Initialize sum for softmax
+    for (int i = 0; i < t.rows(); ++i)
+    {
+        for (int j = 0; j < t.cols(); ++j)
+        {
+            result(i, j) = exp(t(i, j) - max); // Subtract max for numerical stability
+            sum += result(i, j); // Accumulate the sum for softmax
+        }
+    }
+    for (int i = 0; i < result.rows(); ++i)
+    {
+        for (int j = 0; j < result.cols(); ++j)
+        {
+            result(i, j) /= sum; // Normalize by the sum
+        }
+    }
+    return result; // Return the softmax result
+}
+
 // Function to perform forward propagation for the first layer
-Tensor2D forwardPropagationFL(const Tensor2D &input, const Tensor2D &weights, const Tensor2D &biases)
+Tensor2D forwardPropagationFL(const Tensor2D input, const Tensor2D weights, const Tensor2D biases)
 {
     Tensor2D result = Tensor2D(input.rows(), weights.cols());
     for (int i = 0; i < result.rows(); ++i) // Iterate over each row of the input
@@ -173,15 +205,13 @@ Tensor2D forwardPropagationFL(const Tensor2D &input, const Tensor2D &weights, co
             {
                 result(i, j) += input(i, k) * weights(k, j); // Add weighted inputs
             }
-            if (result(i, j) < 0) // Apply ReLU activation function
-            {
-                result(i, j) = 0; // Set negative values to zero
-            }
         }
     }
+    return result; // Return the result of the forward propagation
 }
+
 // Function to forward propagate through the second layer
-Tensor2D forwardPropagationSL(const Tensor2D &input, const Tensor2D &weights, const Tensor2D &biases)
+Tensor2D forwardPropagationSL(const Tensor2D input, const Tensor2D weights, const Tensor2D biases)
 {
     float sum = 0.0f; // Initialize sum for the output
     Tensor2D result = Tensor2D(input.rows(), weights.cols());
@@ -194,31 +224,41 @@ Tensor2D forwardPropagationSL(const Tensor2D &input, const Tensor2D &weights, co
             {
                 result(i, j) += input(i, k) * weights(k, j); // Add weighted inputs
             }
-            sum += exp(result(i, j)); // Accumulate the sum for softmax
         }
     }
-    // Apply softmax activation function
-    for (int i = 0; i < result.rows(); ++i)
-    {
-        for (int j = 0; j < result.cols(); ++j)
-        {
-            result(i, j) = exp(result(i, j)) / sum; // Apply softmax
-        }
-    }
+    return result; // Return the result of the forward propagation
 }
 
-void iterateForwardPropagation(vector<DigitImage> &data, const Tensor2D &w1, const Tensor2D &b1, const Tensor2D &w2, const Tensor2D &b2)
+// Function to iterate over the dataset and perform forward propagation
+tuple<vector<Tensor2D>, vector<Tensor2D>, vector<Tensor2D>, vector<DigitImage>> iterateForwardPropagation(
+    vector<DigitImage> &data, const Tensor2D &w1, const Tensor2D &b1, const Tensor2D &w2, const Tensor2D &b2)
 {
+    // Vectors to hold the outputs of each layer and the updated images
+    vector<Tensor2D> l1outputs;
+    vector<Tensor2D> l1outputsRelu;
+    vector<Tensor2D> l2outputs;
+    vector<DigitImage> updatedImages;
+
     for (DigitImage &img : data)
     {
         // Forward propagate through the first layer
-        Tensor2D layer1 = forwardPropagationFL(img.pixels, w1, b1);
+        Tensor2D l1output = forwardPropagationFL(img.pixels, w1, b1);
+        Tensor2D l1outputRelu = relu(l1output); // Apply ReLU activation function
         // Forward propagate through the second layer
-        Tensor2D output = forwardPropagationSL(layer1, w2, b2);
+        Tensor2D l2output = forwardPropagationSL(l1output, w2, b2);
+        Tensor2D l2outputSoftmax = softmax(l2output); // Apply softmax activation function
 
-        img.pixels.copy(output); // Store the output in the image pixels (or handle it as needed)
+        DigitImage updatedImg = img;
+        updatedImg.pixels = l2outputSoftmax; // Set the output of the second layer as prediction for the label in pixels
+
+        l1outputs.push_back(l1output);
+        l1outputsRelu.push_back(l1outputRelu);
+        l2outputs.push_back(l2output);
+        updatedImages.push_back(updatedImg);
     }
+    return make_tuple(l1outputs, l1outputsRelu, l2outputs, updatedImages); // Return the tuple of vectors
 }
+    
 
 int main()
 {
@@ -237,6 +277,16 @@ int main()
     // Initialize parameters for the neural network
     Tensor2D b1, b2, w1, w2;
     tie(b1, b2, w1, w2) = initParameters();
+
+    vector<Tensor2D> l1, l1relu, l2; // Vectors to hold outputs of the layers results
+    vector<DigitImage> forwardResults; // Vector to hold the results of forward propagation
+    tie(l1, l1relu, l2, forwardResults) = iterateForwardPropagation(trainData, w1, b1, w2, b2);
+    
+    // Display the first image's output after forward propagation
+    cout << "Output of the first training image after forward propagation:\n";
+    displayImageInfo(forwardResults[0]); // Get the DigitImage from the tuple and display it
+    cout << "Output of the size of each vector:\n";
+    cout << "all sizes : " << forwardResults.size() << ", " << l1.size() << ", " << l1relu.size() << ", " << l2.size() << endl;
 
     return 0;
 }
