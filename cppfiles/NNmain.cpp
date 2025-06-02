@@ -74,7 +74,7 @@ vector<DigitImage> loadMNIST(const string &filename)
         {
             try
             {
-                img.pixels(0, cpt) = stof(value);
+                img.pixels(0, cpt) = stof(value) / 255.0f; // Normalize pixel value to [0, 1]
             }
             catch (...)
             {
@@ -124,10 +124,11 @@ pair<vector<DigitImage>, vector<DigitImage>> splitData(vector<DigitImage> &datas
 tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> initParameters()
 {
 
-    int n = 784;                                       // Number of input features (28x28 pixels)
-    int m = 10;                                        // Number of output classes (0-9 digits)
-    Tensor2D b1 = Tensor2D(m, 1), b2 = Tensor2D(m, 1); // Biases for the layers
-    Tensor2D w1 = Tensor2D(m, n), w2 = Tensor2D(m, m); // Weights for the layers
+    int input_size = 784;                                                                     // Number of input features (28x28 pixels)
+    int hidden_size = 128;                                                                    // Number of hidden neurons
+    int output_size = 10;                                                                     // Number of output classes (0-9 digits)
+    Tensor2D b1 = Tensor2D(hidden_size, 1), b2 = Tensor2D(output_size, 1);                    // Biases for the layers
+    Tensor2D w1 = Tensor2D(hidden_size, input_size), w2 = Tensor2D(output_size, hidden_size); // Weights for the layers
 
     // Initialize biases and weights (example values, should be set according to your model)
 
@@ -138,22 +139,26 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> initParameters()
 
     // Fill biases and weights with random values
     // Fill biases with random values
-    for (int j = 0; j < m; ++j)
+    // Fill biases with random values
+    for (int i = 0; i < hidden_size; ++i)
     {
-        b1(j, 0) = dist(gen);
-        b2(j, 0) = dist(gen);
+        b1(i, 0) = dist(gen);
+    }
+    for (int i = 0; i < output_size; ++i)
+    {
+        b2(i, 0) = dist(gen);
     }
     // Fill weights with random values
-    for (int i = 0; i < m; ++i)
+    for (int i = 0; i < hidden_size; ++i)
     {
-        for (int j = 0; j < n; ++j)
+        for (int j = 0; j < input_size; ++j)
         {
             w1(i, j) = dist(gen);
         }
     }
-    for (int i = 0; i < m; ++i)
+    for (int i = 0; i < output_size; ++i)
     {
-        for (int j = 0; j < m; ++j)
+        for (int j = 0; j < hidden_size; ++j)
         {
             w2(i, j) = dist(gen);
         }
@@ -350,6 +355,7 @@ void updateParameters(Tensor2D &w1, Tensor2D &b1, Tensor2D &w2, Tensor2D &b2, co
     w2 = w2 - (dw2 * alpha); // Update weights for the second layer
     b2 = b2 - (db2 * alpha); // Update biases for the second layer
 }
+
 /***********************************************
  *         MULTITHREADING SUPPORT               *
  * Use threading to parallelize training.       *
@@ -382,16 +388,14 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D l
 
             // Lock for parameter update (shared mutex)
             mtx.lock();
-
             updateParameters(w1, b1, w2, b2, dw1, db1, dw2, db2, alpha);
-
-            mtx.unlock();
 
             if (i % 10 == 0 && start == 0)
             {
                 cout << "Thread " << start / batch_size << " Iteration: " << i << " completed.\n";
                 cout << "Accuracy: " << accuracy(l2softmax, batchLabels) << "%\n";
             }
+            mtx.unlock();
         }
     };
 
@@ -417,14 +421,24 @@ int main()
 {
     // Load MNIST dataset
     vector<DigitImage> trainData = loadMNIST("../mnist_train.csv");
-    // vector<DigitImage> testData = loadMNIST("../mnist_test.csv");
+    vector<DigitImage> testData = loadMNIST("../mnist_test.csv");
 
     // convert all datasets to matrix format
     Tensor2D trainLabels, trainPixels, devLabels, devPixels, testLabels, testPixels;
-    // tie(testLabels, testPixels) = toMatrix(testData);    // Convert test data to matrix format
+    tie(testLabels, testPixels) = toMatrix(testData);    // Convert test data to matrix format
     tie(trainLabels, trainPixels, devLabels, devPixels) = initData(trainData); // Convert training and development data to matrix format
 
     Tensor2D b1, b2, w1, w2;
-    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 1000, 0.05f, 10); // Perform gradient descent on the development set
+    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 100, 0.1f, 12); // Perform gradient descent on the development set
+
+    // Evaluate on development set
+    Tensor2D l1, l1relu, l2, predictions;
+    tie(l1, l1relu, l2, predictions) = ForwardPropagation(testPixels, w1, b1, w2, b2);
+
+    float devAcc = accuracy(predictions, testLabels);
+    cout << "\n==============================\n";
+    cout << "Final Accuracy on Dev Set: " << devAcc << "%\n";
+    cout << "==============================\n";
+
     return 0;
 }

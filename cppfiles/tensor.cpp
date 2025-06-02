@@ -75,7 +75,7 @@ public:
         {
             for (int j = 0; j < m; ++j)
             {
-                result(i, j) = operator()(i, j) * m; // Divide each element by m to average
+                result(i, j) = operator()(i, j) * factor; // Multiply each element by the factor
             }
         }
         return result; // Return the averaged tensor
