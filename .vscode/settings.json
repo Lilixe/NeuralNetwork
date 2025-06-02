@@ -74,7 +74,17 @@
         "set": "cpp",
         "stop_token": "cpp",
         "thread": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "cfenv": "cpp",
+        "codecvt": "cpp",
+        "condition_variable": "cpp",
+        "coroutine": "cpp",
+        "cstdarg": "cpp",
+        "future": "cpp",
+        "span": "cpp",
+        "stack": "cpp",
+        "typeindex": "cpp",
+        "unordered_set": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

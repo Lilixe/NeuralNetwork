@@ -129,6 +129,23 @@ public:
         return maxVal;
     }
 
+    // Get the maximum value's index in the tensor's column
+    int maxColIdx(int col) const
+    {
+        int idx = 0;
+        float maxVal = 0.0f;
+        for (int i = 0; i < n; ++i)
+        {
+            if (operator()(i, col) > maxVal)
+            {
+                maxVal = operator()(i, col);
+                idx = i; // Update index of the maximum value
+            }
+        }
+        return idx;
+    }
+
+    // Get the maximum value in the tensor's row
     float maxRow(int row) const
     {
         float maxVal = 0.0f;
@@ -140,6 +157,22 @@ public:
             }
         }
         return maxVal;
+    }
+
+    // Function to slice columns from start (inclusive) to end (exclusive)
+    Tensor2D sliceCols(int start, int end) const
+    {
+        if (start < 0 || end > m || start >= end)
+            throw out_of_range("Invalid column slice range");
+        Tensor2D result(n, end - start);
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = start; j < end; ++j)
+            {
+                result(i, j - start) = operator()(i, j);
+            }
+        }
+        return result;
     }
 
     // Matrix multiplication

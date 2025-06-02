@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <random>
 #include <math.h>
+#include <thread>
 
 #include "tensor.cpp"
+#include <mutex>
 using namespace std;
 
 // All Matrix multiplication will be done using the naive approch which is enough for this project. With a complexity of O(n^3) for n x n matrices.
@@ -180,14 +182,14 @@ pair<Tensor2D, Tensor2D> toMatrix(vector<DigitImage> &data)
     return make_pair(resultLbl, resultPxl); // Return the matrix representation of the dataset
 }
 
-tuple<Tensor2D,Tensor2D,Tensor2D,Tensor2D> initData(vector<DigitImage> trainData){
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> initData(vector<DigitImage> trainData)
+{
     // Randomize the training data
     trainData = randomizeVect(trainData);
     vector<DigitImage> devData;
 
     // Split the training data into training and development sets
     tie(trainData, devData) = splitData(trainData);
-    
 
     Tensor2D trainLabels, trainPixels, devLabels, devPixels;
     tie(trainLabels, trainPixels) = toMatrix(trainData); // Convert training data to matrix format
@@ -195,7 +197,6 @@ tuple<Tensor2D,Tensor2D,Tensor2D,Tensor2D> initData(vector<DigitImage> trainData
 
     return make_tuple(trainLabels, trainPixels, devLabels, devPixels); // Return the matrices for training and development sets
 }
-
 
 /**************************************************
  *             FORWARD PROPAGATION                *
@@ -225,11 +226,11 @@ Tensor2D softmax(Tensor2D t)
     for (int j = 0; j < t.cols(); ++j)
     {
         float max = t.maxCol(j); // Find the maximum value in the column for numerical stability
-        float sum = 0.0f; // Initialize sum for softmax
+        float sum = 0.0f;        // Initialize sum for softmax
         for (int i = 0; i < t.rows(); ++i)
         {
             result(i, j) = exp(t(i, j) - max); // Subtract max for numerical stability
-            sum += result(i, j); // Accumulate the sum for softmax
+            sum += result(i, j);               // Accumulate the sum for softmax
         }
         for (int i = 0; i < result.rows(); ++i)
         {
@@ -296,24 +297,24 @@ Tensor2D oneHot(const Tensor2D labels)
 }
 
 // Function to perform backward propagation
-tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D, Tensor2D, Tensor2D> backwardPropagation(Tensor2D &w2, Tensor2D &l1, Tensor2D &l1relu, Tensor2D &l2, Tensor2D &Pixels, Tensor2D &forwardResults, Tensor2D &oneHotLabels)
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> backwardPropagation(Tensor2D &w2, Tensor2D &l1, Tensor2D &l1relu, Tensor2D &l2, Tensor2D &Pixels, Tensor2D &forwardResults, Tensor2D &oneHotLabels)
 {
     int m = forwardResults.size();         // Get the number of samples (columns in the one-hot labels)
     Tensor2D dl1, dw1, db1, dl2, dw2, db2; // Gradients for the layers
 
     // Compute the gradient of the loss with respect to the second layer
-    dl2 = forwardResults - oneHotLabels;         // Compute the gradient of the loss with respect to the output layer
-    dw2 = dl2.dot(l1relu.transpose()) * (1 / m); // Compute the gradient of the weights for the second layer
+    dl2 = forwardResults - oneHotLabels;            // Compute the gradient of the loss with respect to the output layer
+    dw2 = dl2.dot(l1relu.transpose()) * (1.0f / m); // Compute the gradient of the weights for the second layer
     Tensor2D dEl2 = dl2.sumColumn();
-    db2 = dEl2 * (1 / m);                         // Compute the gradient of the biases for the second layer
+    db2 = dEl2 * (1.0f / m); // Compute the gradient of the biases for the second layer
 
     // Compute the gradient of the loss with respect to the first layer
     dl1 = derivativeRelu(w2.transpose().dot(dl2), l1); // Apply the derivative of ReLU to the gradient of the first layer
-    dw1 = dl1.dot(Pixels.transpose()) * (1 / m);    // Compute the gradient of the weights for the first layer
-    Tensor2D dEl1 = dl1.sumColumn(); 
-    db1 = dEl1 * (1 / m);                              // Compute the gradient of the biases for the first layer
+    dw1 = dl1.dot(Pixels.transpose()) * (1.0f / m);    // Compute the gradient of the weights for the first layer
+    Tensor2D dEl1 = dl1.sumColumn();
+    db1 = dEl1 * (1.0f / m); // Compute the gradient of the biases for the first layer
 
-    return make_tuple(dl1, dw1, db1, dl2, dw2, db2);
+    return make_tuple(dw1, db1, dw2, db2);
 }
 
 /***************************************
@@ -325,12 +326,14 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D, Tensor2D, Tensor2D> backwardPropag
 // Function to calculate the accuracy of predictions against labels
 float accuracy(const Tensor2D &predictions, const Tensor2D &labels)
 {
-    int correct = 0;
-    for (int i = 0; i < predictions.cols(); ++i) {
+    float correct = 0;
+    for (int i = 0; i < predictions.cols(); ++i)
+    {
         // Use maxCol to get the predicted class for column i
-        int pred_class = predictions.maxCol(i);
-        int true_class = (labels(0, i));
-        if (pred_class == true_class) {
+        float pred_class = predictions.maxColIdx(i);
+        float true_class = (labels(0, i));
+        if (pred_class == true_class)
+        {
             ++correct;
         }
     }
@@ -338,6 +341,7 @@ float accuracy(const Tensor2D &predictions, const Tensor2D &labels)
     return acc;
 }
 
+// Function to update the parameters (weights and biases) of the neural network
 void updateParameters(Tensor2D &w1, Tensor2D &b1, Tensor2D &w2, Tensor2D &b2, const Tensor2D &dw1, const Tensor2D &db1, const Tensor2D &dw2, const Tensor2D &db2, float alpha)
 {
     // Update weights and biases using gradient descent
@@ -346,40 +350,63 @@ void updateParameters(Tensor2D &w1, Tensor2D &b1, Tensor2D &w2, Tensor2D &b2, co
     w2 = w2 - (dw2 * alpha); // Update weights for the second layer
     b2 = b2 - (db2 * alpha); // Update biases for the second layer
 }
+/***********************************************
+ *         MULTITHREADING SUPPORT               *
+ * Use threading to parallelize training.       *
+ ***********************************************/
 
-
-tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> gradientDescent(Tensor2D labels, Tensor2D pixels, int iterations, float alpha)
+// Function to perform gradient descent in parallel using threads
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D labels, Tensor2D pixels, int iterations, float alpha, int numThreads)
 {
     // Initialize parameters for the neural network
     Tensor2D b1, b2, w1, w2;
     tie(b1, b2, w1, w2) = initParameters();
-    Tensor2D l1, l1relu, l2, l2softmax; // Vectors to hold outputs of the layers results
-    Tensor2D dl1, dw1, db1, dl2, dw2, db2;
+    Tensor2D oneHotLabels = oneHot(labels);
 
-    for (int i = 0; i < iterations; ++i)
+    int batch_size = pixels.cols() / numThreads;
+
+    // Declare mutex outside the lambda so all threads share it
+    static mutex mtx;
+    auto train_batch = [&](int start, int end)
     {
-        // Forward propagation through the neural network
-        tie(l1, l1relu, l2, l2softmax) = ForwardPropagation(pixels, w1, b1, w2, b2);
-        
-        // backward propagation through the neural network
-        Tensor2D oneHotLabels = oneHot(labels); // Convert labels to one-hot encodin
-        
-        tie(dl1, dw1, db1, dl2, dw2, db2) = backwardPropagation(w2, l1, l1relu, l2, pixels, l2softmax, oneHotLabels); // Perform backward propagation
-
-        // Update parameters using gradient descent
-        updateParameters(w1, b1, w2, b2, dw1, db1, dw2, db2, alpha); // Update weights and biases
-        
-        if (i % 2 == 0) // Print progress every 100 iterations
+        Tensor2D l1, l1relu, l2, l2softmax;
+        Tensor2D dw1, db1, dw2, db2;
+        for (int i = 0; i < iterations; ++i)
         {
-            cout << "Iteration: " << i << " completed.\n";
-            cout << "Accuracy: " << accuracy(l2softmax, labels) << "%\n"; // Calculate and print accuracy
+            Tensor2D batchPixels = pixels.sliceCols(start, end);
+            Tensor2D batchLabels = labels.sliceCols(start, end);
+            Tensor2D batchOneHot = oneHot(batchLabels);
+
+            tie(l1, l1relu, l2, l2softmax) = ForwardPropagation(batchPixels, w1, b1, w2, b2);
+            tie(dw1, db1, dw2, db2) = backwardPropagation(w2, l1, l1relu, l2, batchPixels, l2softmax, batchOneHot);
+
+            // Lock for parameter update (shared mutex)
+            mtx.lock();
+
+            updateParameters(w1, b1, w2, b2, dw1, db1, dw2, db2, alpha);
+
+            mtx.unlock();
+
+            if (i % 10 == 0 && start == 0)
+            {
+                cout << "Thread " << start / batch_size << " Iteration: " << i << " completed.\n";
+                cout << "Accuracy: " << accuracy(l2softmax, batchLabels) << "%\n";
+            }
         }
-        
+    };
+
+    vector<thread> threads;
+    for (int t = 0; t < numThreads; ++t)
+    {
+        int start = t * batch_size;
+        int end = (t == numThreads - 1) ? pixels.cols() : (t + 1) * batch_size;
+        threads.emplace_back(train_batch, start, end);
     }
+    for (auto &th : threads)
+        th.join();
+
     return make_tuple(b1, b2, w1, w2);
 }
-
-
 
 /*****************************
  *       MAIN FUNCTION       *
@@ -390,14 +417,14 @@ int main()
 {
     // Load MNIST dataset
     vector<DigitImage> trainData = loadMNIST("../mnist_train.csv");
-    //vector<DigitImage> testData = loadMNIST("../mnist_test.csv");
+    // vector<DigitImage> testData = loadMNIST("../mnist_test.csv");
 
     // convert all datasets to matrix format
     Tensor2D trainLabels, trainPixels, devLabels, devPixels, testLabels, testPixels;
-    //tie(testLabels, testPixels) = toMatrix(testData);    // Convert test data to matrix format
+    // tie(testLabels, testPixels) = toMatrix(testData);    // Convert test data to matrix format
     tie(trainLabels, trainPixels, devLabels, devPixels) = initData(trainData); // Convert training and development data to matrix format
-    
+
     Tensor2D b1, b2, w1, w2;
-    tie(b1, b2, w1, w2) = gradientDescent(trainLabels, trainPixels, 1000, 0.05f); // Perform gradient descent on the development set
+    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 1000, 0.05f, 10); // Perform gradient descent on the development set
     return 0;
 }
