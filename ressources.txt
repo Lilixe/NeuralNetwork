@@ -3,3 +3,4 @@ https://codereview.stackexchange.com/questions/177973/softmax-function-implement
 https://www.geeksforgeeks.org/strassens-matrix-multiplication-algorithm-implementation/
 https://www.youtube.com/watch?v=w8yWXqWQYmU
 https://en.wikipedia.org/wiki/Softmax_function
+https://www.kaggle.com/code/wwsalmon/simple-mnist-nn-from-scratch-numpy-no-tf-keras

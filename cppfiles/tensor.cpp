@@ -5,9 +5,7 @@
 #include <initializer_list>
 #include <algorithm>
 
-
 using namespace std;
-
 
 class Tensor2D
 {
@@ -70,6 +68,19 @@ public:
         throw invalid_argument("Tensors must have the same dimensions or other must be a column vector with matching rows for addition");
     }
 
+    Tensor2D operator*(const float factor) const
+    {
+        Tensor2D result = Tensor2D(n, m); // Create a new tensor for the result
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = 0; j < m; ++j)
+            {
+                result(i, j) = operator()(i, j) * m; // Divide each element by m to average
+            }
+        }
+        return result; // Return the averaged tensor
+    }
+
     // Overloaded operator for subtraction
     Tensor2D operator-(const Tensor2D &other) const
     {
@@ -105,7 +116,7 @@ public:
     int size() const { return data.size(); }
 
     // Get the maximum value in the tensor's column
-    float max(int col) const
+    float maxCol(int col) const
     {
         float maxVal = 0.0f;
         for (int i = 0; i < n; ++i)
@@ -118,14 +129,17 @@ public:
         return maxVal;
     }
 
-    float sum() const
+    float maxRow(int row) const
     {
-        float total = 0.0f;
-        for (const float &value : data)
+        float maxVal = 0.0f;
+        for (int j = 0; j < m; ++j)
         {
-            total += value;
+            if (operator()(row, j) > maxVal)
+            {
+                maxVal = operator()(row, j);
+            }
         }
-        return total;
+        return maxVal;
     }
 
     // Matrix multiplication
@@ -150,25 +164,19 @@ public:
         return result;
     }
 
-    // function to concatenate two tensors
-    Tensor2D concatenate(const Tensor2D &other) const
+    Tensor2D sumColumn() const
     {
-        if (n != other.n)
-            throw invalid_argument("Tensors must have the same number of rows for concatenation");
-
-        Tensor2D result = Tensor2D(n, m + other.m);
-        for (int i = 0; i < n; ++i)
+        Tensor2D result = Tensor2D(n, 1); // Create a new tensor with n rows and 1 column for the sum
+        for (int i = 0; i < n; i++)
         {
-            for (int j = 0; j < m; ++j)
+            float sum = 0.0f;
+            for (int j = 0; j < m; j++)
             {
-                result(i, j) = operator()(i, j);
+                sum += operator()(i, j); // Sum each row
             }
-            for (int j = 0; j < other.m; ++j)
-            {
-                result(i, m + j) = other(i, j);
-            }
+            result(i, 0) = sum; // Store the sum in the result tensor
         }
-        return result;
+        return result; // Return the summed tensor
     }
 
     // function T to transpose a tensor
@@ -204,15 +212,3 @@ public:
         }
     }
 };
-
-/*
-// Example usage
-int main() {
-    Tensor2D t(2, 3);
-    t.fill(1.5f);
-    t(1, 2) = 5.0f;
-    t.display();
-    cout << "Shape: " << t.rows() << " " << t.cols() << endl;
-    cout << "Element at (1,2): " << t(1, 2) << endl;
-    return 0;
-}*/

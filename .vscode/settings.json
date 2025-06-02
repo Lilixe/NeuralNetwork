@@ -73,7 +73,8 @@
         "ratio": "cpp",
         "set": "cpp",
         "stop_token": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "regex": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }
