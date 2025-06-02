@@ -373,32 +373,33 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D l
 
     // Declare mutex outside the lambda so all threads share it
     static mutex mtx;
+
+    // Lambda function to perform training on a batch of data
     auto train_batch = [&](int start, int end)
     {
         Tensor2D l1, l1relu, l2, l2softmax;
         Tensor2D dw1, db1, dw2, db2;
         for (int i = 0; i < iterations; ++i)
         {
+            // Slice the batch of pixels and labels for the current thread
             Tensor2D batchPixels = pixels.sliceCols(start, end);
             Tensor2D batchLabels = labels.sliceCols(start, end);
             Tensor2D batchOneHot = oneHot(batchLabels);
 
+            // Forward propagation
             tie(l1, l1relu, l2, l2softmax) = ForwardPropagation(batchPixels, w1, b1, w2, b2);
+
+            // Backward propagation
             tie(dw1, db1, dw2, db2) = backwardPropagation(w2, l1, l1relu, l2, batchPixels, l2softmax, batchOneHot);
 
             // Lock for parameter update (shared mutex)
             mtx.lock();
             updateParameters(w1, b1, w2, b2, dw1, db1, dw2, db2, alpha);
-
-            if (i % 10 == 0 && start == 0)
-            {
-                cout << "Thread " << start / batch_size << " Iteration: " << i << " completed.\n";
-                cout << "Accuracy: " << accuracy(l2softmax, batchLabels) << "%\n";
-            }
             mtx.unlock();
         }
     };
 
+    // Create threads for parallel training
     vector<thread> threads;
     for (int t = 0; t < numThreads; ++t)
     {
@@ -428,6 +429,7 @@ int main()
     tie(testLabels, testPixels) = toMatrix(testData);    // Convert test data to matrix format
     tie(trainLabels, trainPixels, devLabels, devPixels) = initData(trainData); // Convert training and development data to matrix format
 
+    // Gradient Descent on the training set
     Tensor2D b1, b2, w1, w2;
     tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 100, 0.1f, 12); // Perform gradient descent on the development set
 
@@ -435,9 +437,9 @@ int main()
     Tensor2D l1, l1relu, l2, predictions;
     tie(l1, l1relu, l2, predictions) = ForwardPropagation(testPixels, w1, b1, w2, b2);
 
-    float devAcc = accuracy(predictions, testLabels);
+    float testAcc = accuracy(predictions, testLabels);
     cout << "\n==============================\n";
-    cout << "Final Accuracy on Dev Set: " << devAcc << "%\n";
+    cout << "Final Accuracy on Test Set: " << testAcc << "%\n";
     cout << "==============================\n";
 
     return 0;
