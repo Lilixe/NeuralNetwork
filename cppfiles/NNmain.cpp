@@ -431,7 +431,7 @@ int main()
 
     // Gradient Descent on the training set
     Tensor2D b1, b2, w1, w2;
-    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 100, 0.1f, 12); // Perform gradient descent on the development set
+    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 1000, 0.1f, 10); // Perform gradient descent on the development set
 
     // Evaluate on development set
     Tensor2D l1, l1relu, l2, predictions;
