@@ -3,7 +3,9 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "${env:USERPROFILE}/appdata/local/python/pythoncore-3.10-64/Lib/site-packages/pybind11/include/**",
+                "${env:USERPROFILE}/AppData/Local/Python/pythoncore-3.10-64/include/**"
             ],
             "defines": [
                 "_DEBUG",
@@ -11,10 +13,10 @@
                 "_UNICODE"
             ],
             "windowsSdkVersion": "10.0.26100.0",
-            "compilerPath": "cl.exe",
+            "compilerPath": "C:/msys64/ucrt64/bin/g++.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "windows-msvc-x64"
+            "intelliSenseMode": "gcc-x64"
         }
     ],
     "version": 4

@@ -86,5 +86,7 @@
         "typeindex": "cpp",
         "unordered_set": "cpp"
     },
-    "C_Cpp.errorSquiggles": "enabled"
+    "C_Cpp.errorSquiggles": "enabled",
+    "C_Cpp.default.compilerPath": "C:/msys64/ucrt64/bin/g++.exe",
+    "python.defaultInterpreterPath": "C:/Users/LixeR/AppData/Local/Python/pythoncore-3.11-64/python.exe"
 }

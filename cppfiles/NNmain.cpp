@@ -413,6 +413,98 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D l
     return make_tuple(b1, b2, w1, w2);
 }
 
+/***********************************************
+ *         TRAINING AND SAVING NN               *
+ * Traion the Neural Network and save the param *
+ ***********************************************/
+
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> trainNN(string trainFile, int iterations, float alpha, int numThreads)
+{
+
+    // Load MNIST dataset
+    vector<DigitImage> trainData = loadMNIST(trainFile);
+
+    // convert all datasets to matrix format
+    Tensor2D trainLabels, trainPixels, devLabels, devPixels;
+    tie(trainLabels, trainPixels, devLabels, devPixels) = initData(trainData); // Convert training and development data to matrix format
+
+    // Gradient Descent on the training set
+    Tensor2D b1, b2, w1, w2;
+    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 1000, 0.1f, 10); // Perform gradient descent on the development set
+
+    saveParameters(b1, b2, w1, w2, "nn_parameters.txt"); // Save the trained parameters to a file
+    return make_tuple(b1, b2, w1, w2);
+}
+
+void saveParameters(const Tensor2D &b1, const Tensor2D &b2, const Tensor2D &w1, const Tensor2D &w2, const string &filename)
+{
+    ofstream output_file(filename);
+    if (!output_file.is_open())
+    {
+        cerr << "Failed to open file for saving parameters.\n";
+        return;
+    }
+
+    // Save biases and weights to the file
+    auto saveTensor = [&](const Tensor2D &tensor)
+    {
+        for (int i = 0; i < tensor.rows(); ++i)
+        {
+            for (int j = 0; j < tensor.cols(); ++j)
+            {
+                char s[50] = "";
+                sprintf(s, "%f", tensor(i, j));
+                output_file.write(s, 50);
+            }
+        }
+    };
+
+    saveTensor(b1);
+    saveTensor(b2);
+    saveTensor(w1);
+    saveTensor(w2);
+
+    output_file.close();
+}
+
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> loadParameters(const string &filename)
+{
+    vector<Tensor2D> tensors = {
+        Tensor2D(128, 1),   // b1
+        Tensor2D(10, 1),    // b2
+        Tensor2D(128, 784), // w1
+        Tensor2D(10, 128)   // w2
+    };
+
+    int vecIdx = 0;
+    int cpt = 0;
+    ifstream input_file(filename);
+    char tempVar;
+
+    std::vector<char> newVector;
+    while ( input_file >> tempVar )
+    {
+        newVector.push_back(tempVar);
+    }
+
+    for (int i = 0; i < tensors[vecIdx].rows(); ++i)
+    {
+        for (int j = 0; j < tensors[vecIdx].cols(); ++j)
+        {
+            if (vecIdx >= tensors.size())
+            {
+                break;
+            }
+            string result = "";
+            for (int cpt = 0; cpt < 50; ++cpt)
+            {
+                result = result + newVector[i * j * 50 + cpt];
+            }
+            tensors[vecIdx](i,j) = stof(result);
+        }
+    }
+}
+
 /*****************************
  *       MAIN FUNCTION       *
  * Program execution starts. *
@@ -421,17 +513,14 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D l
 int main()
 {
     // Load MNIST dataset
-    vector<DigitImage> trainData = loadMNIST("../mnist_train.csv");
     vector<DigitImage> testData = loadMNIST("../mnist_test.csv");
+    Tensor2D testLabels, testPixels, b1, b2, w1, w2;
 
-    // convert all datasets to matrix format
-    Tensor2D trainLabels, trainPixels, devLabels, devPixels, testLabels, testPixels;
-    tie(testLabels, testPixels) = toMatrix(testData);    // Convert test data to matrix format
-    tie(trainLabels, trainPixels, devLabels, devPixels) = initData(trainData); // Convert training and development data to matrix format
+    // Convert test data to matrix format
+    tie(testLabels, testPixels) = toMatrix(testData);
 
-    // Gradient Descent on the training set
-    Tensor2D b1, b2, w1, w2;
-    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 1000, 0.1f, 10); // Perform gradient descent on the development set
+    // Train the neural network
+    tie(b1, b2, w1, w2) = trainNN("../mnist_train.csv", 1000, 0.1f, 10);
 
     // Evaluate on development set
     Tensor2D l1, l1relu, l2, predictions;
