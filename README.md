@@ -1,6 +1,6 @@
 # NeuralNetwork
 
-A simple neural network implementation in C++ designed for educational purposes.  
+A simple neural network implementation in C++.  
 This project demonstrates core neural network concepts such as forward propagation, backpropagation, and training on the MNIST dataset.
 
 ## 🧠 Features
