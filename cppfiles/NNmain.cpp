@@ -89,16 +89,6 @@ vector<DigitImage> loadMNIST(const string &filename)
     return dataset;
 }
 
-// Function to display image information
-void displayImageInfo(const DigitImage &img)
-{
-    // display the label and pixels of the image
-    cout << "Label: " << img.label << "\nPixels:\n";
-
-    // Print the pixels in a 28x28 format
-    img.pixels.display();
-}
-
 // Function to randomize the dataset
 vector<DigitImage> randomizeVect(vector<DigitImage> &dataset)
 {
@@ -381,6 +371,10 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D l
         Tensor2D dw1, db1, dw2, db2;
         for (int i = 0; i < iterations; ++i)
         {
+            if(i % 50 == 0)
+            {
+                cout << "Iteration " << i << "%\n";
+            }
             // Slice the batch of pixels and labels for the current thread
             Tensor2D batchPixels = pixels.sliceCols(start, end);
             Tensor2D batchLabels = labels.sliceCols(start, end);
@@ -418,24 +412,6 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D l
  * Traion the Neural Network and save the param *
  ***********************************************/
 
-tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> trainNN(string trainFile, int iterations, float alpha, int numThreads)
-{
-
-    // Load MNIST dataset
-    vector<DigitImage> trainData = loadMNIST(trainFile);
-
-    // convert all datasets to matrix format
-    Tensor2D trainLabels, trainPixels, devLabels, devPixels;
-    tie(trainLabels, trainPixels, devLabels, devPixels) = initData(trainData); // Convert training and development data to matrix format
-
-    // Gradient Descent on the training set
-    Tensor2D b1, b2, w1, w2;
-    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, 1000, 0.1f, 10); // Perform gradient descent on the development set
-
-    saveParameters(b1, b2, w1, w2, "nn_parameters.txt"); // Save the trained parameters to a file
-    return make_tuple(b1, b2, w1, w2);
-}
-
 void saveParameters(const Tensor2D &b1, const Tensor2D &b2, const Tensor2D &w1, const Tensor2D &w2, const string &filename)
 {
     ofstream output_file(filename);
@@ -445,6 +421,8 @@ void saveParameters(const Tensor2D &b1, const Tensor2D &b2, const Tensor2D &w1, 
         return;
     }
 
+    output_file.open(filename, std::ofstream::out | std::ofstream::trunc);
+
     // Save biases and weights to the file
     auto saveTensor = [&](const Tensor2D &tensor)
     {
@@ -452,9 +430,9 @@ void saveParameters(const Tensor2D &b1, const Tensor2D &b2, const Tensor2D &w1, 
         {
             for (int j = 0; j < tensor.cols(); ++j)
             {
-                char s[50] = "";
+                char s[7] = "";
                 sprintf(s, "%f", tensor(i, j));
-                output_file.write(s, 50);
+                output_file.write(s, 7);
             }
         }
     };
@@ -476,33 +454,54 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> loadParameters(const string &filen
         Tensor2D(10, 128)   // w2
     };
 
-    int vecIdx = 0;
-    int cpt = 0;
     ifstream input_file(filename);
     char tempVar;
 
     std::vector<char> newVector;
-    while ( input_file >> tempVar )
+    while (input_file >> tempVar)
     {
         newVector.push_back(tempVar);
     }
 
-    for (int i = 0; i < tensors[vecIdx].rows(); ++i)
+    for (int vecIdx = 0; vecIdx < tensors.size(); ++vecIdx)
     {
-        for (int j = 0; j < tensors[vecIdx].cols(); ++j)
+        for (int i = 0; i < tensors[vecIdx].rows(); ++i)
         {
-            if (vecIdx >= tensors.size())
+            for (int j = 0; j < tensors[vecIdx].cols(); ++j)
             {
-                break;
+                if (vecIdx >= tensors.size())
+                {
+                    break;
+                }
+                string result = "";
+                for (int cpt = 0; cpt < 5; ++cpt)
+                {
+                    result = result + newVector[i * j * 5 + cpt];
+                }
+                tensors[vecIdx](i, j) = stof(result);
             }
-            string result = "";
-            for (int cpt = 0; cpt < 50; ++cpt)
-            {
-                result = result + newVector[i * j * 50 + cpt];
-            }
-            tensors[vecIdx](i,j) = stof(result);
         }
     }
+
+    return make_tuple(tensors[0], tensors[1], tensors[2], tensors[3]);
+}
+
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> trainNN(string trainFile, int iterations, float alpha, int numThreads)
+{
+
+    // Load MNIST dataset
+    vector<DigitImage> trainData = loadMNIST(trainFile);
+
+    // convert all datasets to matrix format
+    Tensor2D trainLabels, trainPixels, devLabels, devPixels;
+    tie(trainLabels, trainPixels, devLabels, devPixels) = initData(trainData); // Convert training and development data to matrix format
+
+    // Gradient Descent on the training set
+    Tensor2D b1, b2, w1, w2;
+    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, iterations, alpha, numThreads); // Perform gradient descent on the development set
+
+    saveParameters(b1, b2, w1, w2, "nn_parameters.txt"); // Save the trained parameters to a file
+    return make_tuple(b1, b2, w1, w2);
 }
 
 /*****************************
@@ -513,6 +512,7 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> loadParameters(const string &filen
 int main()
 {
     // Load MNIST dataset
+    cout << "\n==============================\n";
     vector<DigitImage> testData = loadMNIST("../mnist_test.csv");
     Tensor2D testLabels, testPixels, b1, b2, w1, w2;
 
