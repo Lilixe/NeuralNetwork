@@ -115,7 +115,7 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> initParameters()
 {
 
     int input_size = 784;                                                                     // Number of input features (28x28 pixels)
-    int hidden_size = 128;                                                                    // Number of hidden neurons
+    int hidden_size = 64;                                                                     // Number of hidden neurons
     int output_size = 10;                                                                     // Number of output classes (0-9 digits)
     Tensor2D b1 = Tensor2D(hidden_size, 1), b2 = Tensor2D(output_size, 1);                    // Biases for the layers
     Tensor2D w1 = Tensor2D(hidden_size, input_size), w2 = Tensor2D(output_size, hidden_size); // Weights for the layers
@@ -291,14 +291,29 @@ Tensor2D oneHot(const Tensor2D labels)
     return result.transpose(); // Return the one-hot encoded tensor
 }
 
+float crossEntropyLoss(const Tensor2D &predictions, const Tensor2D &labels)
+{
+    float loss = 0.0f;
+    int m = predictions.cols(); // Number of samples
+    for (int i = 0; i < m; ++i)
+    {
+        for (int j = 0; j < predictions.rows(); ++j)
+        {
+            loss += labels(j, i) * log(predictions(j, i) + 1e-8f); // Add small epsilon to avoid log(0)
+        }
+    }
+    return -loss / m; // Return the average cross-entropy loss
+}
+
 // Function to perform backward propagation
-tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> backwardPropagation(Tensor2D &w2, Tensor2D &l1, Tensor2D &l1relu, Tensor2D &l2, Tensor2D &Pixels, Tensor2D &forwardResults, Tensor2D &oneHotLabels)
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D, float> backwardPropagation(Tensor2D &w2, Tensor2D &l1, Tensor2D &l1relu, Tensor2D &l2, Tensor2D &Pixels, Tensor2D &forwardResults, Tensor2D &oneHotLabels)
 {
     int m = forwardResults.size();         // Get the number of samples (columns in the one-hot labels)
     Tensor2D dl1, dw1, db1, dl2, dw2, db2; // Gradients for the layers
 
     // Compute the gradient of the loss with respect to the second layer
-    dl2 = forwardResults - oneHotLabels;            // Compute the gradient of the loss with respect to the output layer
+    float ce_loss = crossEntropyLoss(forwardResults, oneHotLabels);
+    dl2 = forwardResults - oneHotLabels;            // Compute the gradient of the loss (Derivate of CELoss)
     dw2 = dl2.dot(l1relu.transpose()) * (1.0f / m); // Compute the gradient of the weights for the second layer
     Tensor2D dEl2 = dl2.sumColumn();
     db2 = dEl2 * (1.0f / m); // Compute the gradient of the biases for the second layer
@@ -309,7 +324,7 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> backwardPropagation(Tensor2D &w2, 
     Tensor2D dEl1 = dl1.sumColumn();
     db1 = dEl1 * (1.0f / m); // Compute the gradient of the biases for the first layer
 
-    return make_tuple(dw1, db1, dw2, db2);
+    return make_tuple(dw1, db1, dw2, db2, ce_loss); // Return the gradients as a tuple
 }
 
 /***************************************
@@ -352,7 +367,7 @@ void updateParameters(Tensor2D &w1, Tensor2D &b1, Tensor2D &w2, Tensor2D &b2, co
  ***********************************************/
 
 // Function to perform gradient descent in parallel using threads
-tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D labels, Tensor2D pixels, int iterations, float alpha, int numThreads)
+tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D labels, Tensor2D pixels, Tensor2D evalLabels, Tensor2D evalPixels, int epochs, float alpha, int numThreads)
 {
     // Initialize parameters for the neural network
     Tensor2D b1, b2, w1, w2;
@@ -369,40 +384,63 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D l
     {
         Tensor2D l1, l1relu, l2, l2softmax;
         Tensor2D dw1, db1, dw2, db2;
-        for (int i = 0; i < iterations; ++i)
-        {
-            if(i % 50 == 0)
-            {
-                cout << "Iteration " << i << "%\n";
-            }
-            // Slice the batch of pixels and labels for the current thread
-            Tensor2D batchPixels = pixels.sliceCols(start, end);
-            Tensor2D batchLabels = labels.sliceCols(start, end);
-            Tensor2D batchOneHot = oneHot(batchLabels);
+        float loss;
 
-            // Forward propagation
-            tie(l1, l1relu, l2, l2softmax) = ForwardPropagation(batchPixels, w1, b1, w2, b2);
+        // Slice the batch of pixels and labels for the current thread
+        Tensor2D batchPixels = pixels.sliceCols(start, end);
+        Tensor2D batchLabels = labels.sliceCols(start, end);
+        Tensor2D batchOneHot = oneHot(batchLabels);
 
-            // Backward propagation
-            tie(dw1, db1, dw2, db2) = backwardPropagation(w2, l1, l1relu, l2, batchPixels, l2softmax, batchOneHot);
+        // Forward propagation
+        tie(l1, l1relu, l2, l2softmax) = ForwardPropagation(batchPixels, w1, b1, w2, b2);
 
-            // Lock for parameter update (shared mutex)
-            mtx.lock();
-            updateParameters(w1, b1, w2, b2, dw1, db1, dw2, db2, alpha);
-            mtx.unlock();
-        }
+        // Backward propagation
+        tie(dw1, db1, dw2, db2, loss) = backwardPropagation(w2, l1, l1relu, l2, batchPixels, l2softmax, batchOneHot);
+
+        // Lock for parameter update (shared mutex)
+        mtx.lock();
+        updateParameters(w1, b1, w2, b2, dw1, db1, dw2, db2, alpha);
+        mtx.unlock();
     };
 
-    // Create threads for parallel training
-    vector<thread> threads;
-    for (int t = 0; t < numThreads; ++t)
+    auto eval_batch = [&](int start, int end)
     {
-        int start = t * batch_size;
-        int end = (t == numThreads - 1) ? pixels.cols() : (t + 1) * batch_size;
-        threads.emplace_back(train_batch, start, end);
+        Tensor2D l1, l1relu, l2, l2softmax;
+        Tensor2D dw1, db1, dw2, db2;
+        float loss;
+
+        // Slice the batch of pixels and labels for the current thread
+        Tensor2D batchPixels = pixels.sliceCols(start, end);
+        Tensor2D batchLabels = labels.sliceCols(start, end);
+        Tensor2D batchOneHot = oneHot(batchLabels);
+
+        // Forward propagation
+        tie(l1, l1relu, l2, l2softmax) = ForwardPropagation(batchPixels, w1, b1, w2, b2);
+        loss = crossEntropyLoss(l2softmax, batchOneHot);
+    };
+
+    for (int i = 0; i < epochs; ++i)
+    {
+        if (i % 50 == 0)
+        {
+            cout << "Iteration " << i << "\n";
+        }
+        vector<std::thread> threads;
+        threads.reserve(numThreads);
+
+        for (int t = 0; t < numThreads; ++t)
+        {
+            int start = t * batch_size;
+            int end = (t == numThreads - 1)
+                          ? pixels.cols()
+                          : (t + 1) * batch_size;
+
+            threads.emplace_back(train_batch, start, end);
+        }
+
+        for (auto &th : threads)
+            th.join();
     }
-    for (auto &th : threads)
-        th.join();
 
     return make_tuple(b1, b2, w1, w2);
 }
@@ -415,13 +453,9 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> threadedGradientDescent(Tensor2D l
 void saveParameters(const Tensor2D &b1, const Tensor2D &b2, const Tensor2D &w1, const Tensor2D &w2, const string &filename)
 {
     ofstream output_file(filename);
-    if (!output_file.is_open())
-    {
-        cerr << "Failed to open file for saving parameters.\n";
-        return;
-    }
 
-    output_file.open(filename, std::ofstream::out | std::ofstream::trunc);
+    //output_file.open(filename, std::ofstream::out | std::ofstream::trunc);
+    cout << "Saving parameters to " << filename << "...\n";
 
     // Save biases and weights to the file
     auto saveTensor = [&](const Tensor2D &tensor)
@@ -430,9 +464,10 @@ void saveParameters(const Tensor2D &b1, const Tensor2D &b2, const Tensor2D &w1, 
         {
             for (int j = 0; j < tensor.cols(); ++j)
             {
-                char s[7] = "";
-                sprintf(s, "%f", tensor(i, j));
-                output_file.write(s, 7);
+                float value = tensor(i, j);
+                const char *s = reinterpret_cast<const char *>(&value);
+                cout << s << "/n ";
+                output_file.write(s, sizeof(float));
             }
         }
     };
@@ -441,6 +476,7 @@ void saveParameters(const Tensor2D &b1, const Tensor2D &b2, const Tensor2D &w1, 
     saveTensor(b2);
     saveTensor(w1);
     saveTensor(w2);
+    cout << "Parameters saved successfully.\n";
 
     output_file.close();
 }
@@ -454,34 +490,36 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> loadParameters(const string &filen
         Tensor2D(10, 128)   // w2
     };
 
-    ifstream input_file(filename);
-    char tempVar;
-
-    std::vector<char> newVector;
-    while (input_file >> tempVar)
+    std::ifstream input_file(filename, std::ios::binary);
+    if (!input_file.is_open())
     {
-        newVector.push_back(tempVar);
+        std::cerr << "Failed to open file for loading parameters.\n";
     }
 
-    for (int vecIdx = 0; vecIdx < tensors.size(); ++vecIdx)
+    std::cout << "Loading parameters from " << filename << "...\n";
+
+    auto loadTensor = [&](Tensor2D &tensor)
     {
-        for (int i = 0; i < tensors[vecIdx].rows(); ++i)
+        for (int i = 0; i < tensor.rows(); ++i)
         {
-            for (int j = 0; j < tensors[vecIdx].cols(); ++j)
+            for (int j = 0; j < tensor.cols(); ++j)
             {
-                if (vecIdx >= tensors.size())
+                input_file.read(
+                    reinterpret_cast<char *>(&tensor(i, j)),
+                    sizeof(float));
+
+                if (!input_file)
                 {
-                    break;
+                    std::cerr << "Error while reading parameter file.\n";
                 }
-                string result = "";
-                for (int cpt = 0; cpt < 5; ++cpt)
-                {
-                    result = result + newVector[i * j * 5 + cpt];
-                }
-                tensors[vecIdx](i, j) = stof(result);
             }
         }
-    }
+    };
+
+    loadTensor(tensors[0]);
+    loadTensor(tensors[1]);
+    loadTensor(tensors[2]);
+    loadTensor(tensors[3]);
 
     return make_tuple(tensors[0], tensors[1], tensors[2], tensors[3]);
 }
@@ -498,8 +536,9 @@ tuple<Tensor2D, Tensor2D, Tensor2D, Tensor2D> trainNN(string trainFile, int iter
 
     // Gradient Descent on the training set
     Tensor2D b1, b2, w1, w2;
-    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, iterations, alpha, numThreads); // Perform gradient descent on the development set
+    tie(b1, b2, w1, w2) = threadedGradientDescent(trainLabels, trainPixels, devLabels, devPixels, iterations, alpha, numThreads); // Perform gradient descent on the development set
 
+    cout << "\nExiting training.\n";
     saveParameters(b1, b2, w1, w2, "nn_parameters.txt"); // Save the trained parameters to a file
     return make_tuple(b1, b2, w1, w2);
 }
@@ -518,9 +557,12 @@ int main()
 
     // Convert test data to matrix format
     tie(testLabels, testPixels) = toMatrix(testData);
+    int iterations = 50;
+    float alpha = 0.1f;
+    int numThreads = 12;
 
     // Train the neural network
-    tie(b1, b2, w1, w2) = trainNN("../mnist_train.csv", 1000, 0.1f, 10);
+    tie(b1, b2, w1, w2) = trainNN("../mnist_train.csv", iterations, alpha, numThreads);
 
     // Evaluate on development set
     Tensor2D l1, l1relu, l2, predictions;
