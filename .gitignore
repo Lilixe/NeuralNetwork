@@ -1,2 +1,21 @@
-# Ignorer tous les fichiers .csv
+# ── Dataset (volumineux, à télécharger séparément) ───────────────────────────
 *.csv
+
+# ── Binaires compilés ─────────────────────────────────────────────────────────
+*.exe
+*.obj
+*.ilk
+
+# ── Artefacts de debug / linker (MSVC + nvcc) ─────────────────────────────────
+*.pdb
+*.exp
+*.lib
+
+# ── Poids du modèle entraîné (généré, pas du source) ─────────────────────────
+cppfiles/nn_parameters.txt
+
+# ── CMake ─────────────────────────────────────────────────────────────────────
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
