@@ -12,12 +12,13 @@
                 "UNICODE",
                 "_UNICODE"
             ],
+            "compilerPath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x86\\cl.exe",
+            "compilerArgs": [],
+            "intelliSenseMode": "windows-msvc-x86",
             "windowsSdkVersion": "10.0.26100.0",
-            "compilerPath": "C:/msys64/ucrt64/bin/g++.exe",
             "cStandard": "c17",
-            "cppStandard": "c++17",
-            "intelliSenseMode": "gcc-x64"
+            "cppStandard": "c++17"
         }
     ],
-    "version": 4
+    "version": 4    
 }
